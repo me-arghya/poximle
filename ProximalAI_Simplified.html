@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Compliance · Transcript</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --neon-blue:   #00c8ff;
+  --neon-teal:   #00ffd5;
+  --neon-green:  #39ff14;
+  --neon-yellow: #ffe600;
+  --neon-purple: #bf5fff;
+  --neon-red:    #ff4757;
+  --bg-deep:     #020c18;
+  --bg-panel:    rgba(4, 20, 42, 0.82);
+  --bg-card:     rgba(0, 30, 60, 0.75);
+  --border-dim:  rgba(0, 200, 255, 0.15);
+  --text-primary: #e8f4ff;
+  --text-muted:   rgba(180, 215, 255, 0.55);
+  --font: 'Inter', sans-serif;
+  --mono: 'Share Tech Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background-color: var(--bg-deep);
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 50%, rgba(0,40,80,0.9) 0%, transparent 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cpath d='M30 5 L55 20 L55 40 L30 55 L5 40 L5 20 Z' fill='none' stroke='rgba(0,100,180,0.07)' stroke-width='0.8'/%3E%3C/svg%3E");
+  background-size: auto, 60px 60px;
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 10, 30, 0.06) 2px,
+    rgba(0, 10, 30, 0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app-wrap {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 36px;
+  border-bottom: 1px solid var(--border-dim);
+  background: rgba(2, 12, 28, 0.7);
+  backdrop-filter: blur(12px);
+}
+
+.header-brand { display: flex; align-items: center; gap: 14px; }
+
+.brand-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  border: 1.5px solid var(--neon-blue);
+  background: rgba(0, 200, 255, 0.08);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; box-shadow: 0 0 12px rgba(0, 200, 255, 0.25);
+}
+
+.brand-name {
+  font-family: var(--mono); font-size: 22px; font-weight: 400;
+  color: var(--neon-blue); text-shadow: 0 0 18px rgba(0, 200, 255, 0.5); letter-spacing: 2px;
+}
+
+.brand-tag { font-size: 10px; color: var(--text-muted); letter-spacing: 4px; text-transform: uppercase; margin-top: 2px; }
+
+.header-meta { display: flex; align-items: center; gap: 10px; }
+
+.meta-pill {
+  font-size: 10px; font-family: var(--mono); letter-spacing: 1.5px;
+  text-transform: uppercase; padding: 4px 12px; border-radius: 20px; border: 1px solid;
+}
+
+.pill-live {
+  border-color: rgba(57, 255, 20, 0.4); color: var(--neon-green);
+  background: rgba(57, 255, 20, 0.05); box-shadow: 0 0 10px rgba(57, 255, 20, 0.1);
+}
+
+.main { flex: 1; display: flex; gap: 0; }
+
+.panel-left {
+  flex: 1; padding: 32px 36px;
+  display: flex; flex-direction: column; gap: 24px;
+}
+
+.sec-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;
+}
+
+.control-row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
+
+.nbtn {
+  height: 48px; padding: 0 22px; border-radius: 8px; border: 1.5px solid;
+  background: transparent; font-family: var(--font); font-size: 13.5px; font-weight: 600;
+  letter-spacing: 0.3px; cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center; gap: 8px; transition: all 0.2s ease; white-space: nowrap; min-width: 160px;
+}
+.nbtn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.nbtn-start { border-color: var(--neon-blue); color: var(--neon-blue); box-shadow: 0 0 12px rgba(0,200,255,0.2), inset 0 0 12px rgba(0,200,255,0.03); }
+.nbtn-start:hover:not(:disabled) { background: rgba(0,200,255,0.1); box-shadow: 0 0 22px rgba(0,200,255,0.4), inset 0 0 16px rgba(0,200,255,0.07); }
+.nbtn-start.active { background: rgba(0,200,255,0.12); box-shadow: 0 0 28px rgba(0,200,255,0.55), inset 0 0 20px rgba(0,200,255,0.1); animation: pulseBlue 2s ease-in-out infinite; }
+
+.nbtn-stop { border-color: var(--neon-red); color: var(--neon-red); box-shadow: 0 0 12px rgba(255,71,87,0.18), inset 0 0 12px rgba(255,71,87,0.03); }
+.nbtn-stop:hover:not(:disabled) { background: rgba(255,71,87,0.1); box-shadow: 0 0 22px rgba(255,71,87,0.4); }
+
+.nbtn-download { border-color: var(--neon-yellow); color: var(--neon-yellow); box-shadow: 0 0 12px rgba(255,230,0,0.18); display: none; }
+.nbtn-download.visible { display: inline-flex; }
+.nbtn-download:hover:not(:disabled) { background: rgba(255,230,0,0.08); box-shadow: 0 0 22px rgba(255,230,0,0.38); }
+
+.lang-wrap { position: relative; min-width: 160px; height: 48px; }
+
+.lang-select {
+  width: 100%; height: 100%; padding: 0 36px 0 16px; border-radius: 8px;
+  border: 1.5px solid rgba(0,255,213,0.45); background: transparent; color: var(--neon-teal);
+  font-family: var(--font); font-size: 13.5px; font-weight: 600; cursor: pointer;
+  outline: none; appearance: none; box-shadow: 0 0 12px rgba(0,255,213,0.15); transition: all 0.2s;
+}
+.lang-select:hover { background: rgba(0,255,213,0.07); box-shadow: 0 0 22px rgba(0,255,213,0.3); }
+.lang-select option { background: #031828; color: #c0e8f8; font-weight: 400; }
+.lang-arrow { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--neon-teal); font-size: 11px; pointer-events: none; }
+
+.translate-toggle-wrap {
+  height: 48px; padding: 0 16px; border-radius: 8px;
+  border: 1.5px solid rgba(0,255,213,0.35); background: rgba(0,255,213,0.04);
+  display: inline-flex; align-items: center; gap: 10px; min-width: 200px;
+  box-shadow: 0 0 12px rgba(0,255,213,0.1); transition: all 0.2s;
+}
+.translate-toggle-wrap:hover { border-color: rgba(0,255,213,0.55); box-shadow: 0 0 20px rgba(0,255,213,0.2); }
+.translate-toggle-wrap .tgl-icon { font-size: 18px; flex-shrink: 0; }
+.translate-toggle-wrap .tgl-text { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+.translate-toggle-wrap .tgl-label { font-size: 9.5px; font-family: var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
+.translate-toggle-wrap .tgl-status { font-size: 12px; font-weight: 700; color: var(--neon-teal); letter-spacing: 0.5px; transition: color 0.2s; }
+.translate-toggle-wrap .tgl-status.off { color: rgba(180,215,255,0.35); }
+
+.tgl-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; cursor: pointer; }
+.tgl-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.tgl-track { position: absolute; inset: 0; border-radius: 11px; background: rgba(0,255,213,0.15); border: 1px solid rgba(0,255,213,0.3); transition: all 0.25s; }
+.tgl-switch input:checked + .tgl-track { background: rgba(0,255,213,0.3); border-color: var(--neon-teal); box-shadow: 0 0 10px rgba(0,255,213,0.4); }
+.tgl-thumb { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: rgba(180,215,255,0.4); transition: all 0.25s; }
+.tgl-switch input:checked ~ .tgl-thumb { left: 19px; background: var(--neon-teal); box-shadow: 0 0 8px rgba(0,255,213,0.7); }
+
+.status-bar {
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  border-radius: 8px; border: 1px solid var(--border-dim);
+  background: rgba(0,20,45,0.5); font-family: var(--mono); font-size: 12px;
+  color: var(--text-muted); min-height: 40px;
+}
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; transition: all 0.3s; }
+.status-bar.recording .status-dot { background: var(--neon-green); box-shadow: 0 0 8px var(--neon-green); animation: blink 1s ease-in-out infinite; }
+.status-bar.recording { border-color: rgba(57,255,20,0.25); color: var(--neon-green); }
+.status-bar.done { border-color: rgba(0,200,255,0.25); color: var(--neon-blue); }
+.status-bar.done .status-dot { background: var(--neon-blue); box-shadow: 0 0 8px var(--neon-blue); }
+.status-bar.translating { border-color: rgba(0,255,213,0.25); color: var(--neon-teal); }
+.status-bar.translating .status-dot { background: var(--neon-teal); box-shadow: 0 0 8px var(--neon-teal); animation: blink 0.6s ease-in-out infinite; }
+.status-timer { margin-left: auto; font-family: var(--mono); font-size: 13px; letter-spacing: 2px; }
+
+.transcript-wrap { position: relative; flex: 1; }
+.transcript-label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.word-count { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+.word-count span { color: var(--neon-blue); }
+
+textarea#transcript {
+  width: 100%; height: 240px; background: rgba(0,15,35,0.6);
+  border: 1.5px solid var(--border-dim); border-radius: 10px; padding: 16px 18px;
+  font-family: var(--mono); font-size: 13px; color: var(--text-primary);
+  line-height: 1.75; resize: vertical; outline: none; transition: border-color 0.2s;
+}
+textarea#transcript::placeholder { color: rgba(120,170,210,0.35); font-style: italic; }
+textarea#transcript:focus { border-color: rgba(0,200,255,0.4); box-shadow: 0 0 20px rgba(0,200,255,0.07); }
+textarea#transcript.active-rec { border-color: rgba(57,255,20,0.35); box-shadow: 0 0 20px rgba(57,255,20,0.07); }
+textarea#transcript.active-translate { border-color: rgba(0,255,213,0.45); box-shadow: 0 0 20px rgba(0,255,213,0.1); }
+
+.upload-zone {
+  border: 1.5px dashed rgba(0,200,255,0.2); border-radius: 10px; padding: 16px 20px;
+  display: flex; align-items: center; gap: 14px; background: rgba(0,15,35,0.4);
+  cursor: pointer; transition: all 0.2s;
+}
+.upload-zone:hover { border-color: rgba(0,200,255,0.45); background: rgba(0,200,255,0.04); }
+.upload-zone-icon { font-size: 22px; flex-shrink: 0; }
+.upload-zone-text { font-size: 13px; color: var(--text-muted); }
+.upload-zone-text b { color: var(--neon-blue); font-weight: 600; }
+.upload-zone input[type="file"] { display: none; }
+
+.audio-progress-wrap {
+  display: none; flex-direction: column; gap: 6px; padding: 12px 16px;
+  border-radius: 8px; border: 1px solid rgba(0,255,213,0.2); background: rgba(0,255,213,0.04);
+}
+.audio-progress-wrap.visible { display: flex; }
+.audio-progress-label { font-family: var(--mono); font-size: 11px; color: var(--neon-teal); display: flex; justify-content: space-between; }
+.audio-progress-track { width: 100%; height: 4px; background: rgba(0,255,213,0.12); border-radius: 2px; overflow: hidden; }
+.audio-progress-fill { height: 100%; background: var(--neon-teal); border-radius: 2px; width: 0%; transition: width 0.4s ease; box-shadow: 0 0 8px rgba(0,255,213,0.5); }
+
+.footer {
+  padding: 12px 36px; border-top: 1px solid var(--border-dim);
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(2,10,22,0.7); font-family: var(--mono); font-size: 10px;
+  color: var(--text-muted); letter-spacing: 1px;
+}
+
+@keyframes pulseBlue {
+  0%, 100% { box-shadow: 0 0 18px rgba(0,200,255,0.4), inset 0 0 14px rgba(0,200,255,0.07); }
+  50%       { box-shadow: 0 0 36px rgba(0,200,255,0.7), inset 0 0 20px rgba(0,200,255,0.12); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+@media (max-width: 768px) {
+  .main { flex-direction: column; }
+  .header { padding: 14px 18px; }
+  .panel-left { padding: 20px 18px; }
+  .control-row { flex-direction: column; }
+  .nbtn, .lang-wrap, .translate-toggle-wrap { min-width: 100%; width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-wrap">
+
+  <header class="header">
+    <div class="header-brand">
+      <div class="brand-icon">🎤</div>
+      <div>
+        <div class="brand-name">TRANSCRIPT</div>
+        <div class="brand-tag">Audio · Text · Privacy</div>
+      </div>
+    </div>
+    <div class="header-meta">
+      <span class="meta-pill pill-live">● Live</span>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <div class="panel-left">
+
+      <div>
+        <div class="sec-label">Session Recording</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;line-height:1.6">
+          Record your session or upload an existing transcript. Select language, start recording — speech converts to text in real time.
+        </div>
+      </div>
+
+      <div>
+        <div class="sec-label" style="margin-bottom:10px">Controls</div>
+        <div class="control-row">
+
+          <button class="nbtn nbtn-start" id="btnStart" onclick="startRecording()">
+            🎤 Start Recording
+          </button>
+
+          <div class="lang-wrap">
+            <select class="lang-select" id="languageSelect" onchange="switchLanguage(this)">
+              <optgroup label="── English ──">
+                <option value="en-US">English (US)</option>
+                <option value="en-GB">English (UK)</option>
+                <option value="en-AU">English (Australia)</option>
+              </optgroup>
+              <optgroup label="── European ──">
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+                <option value="es-ES">Spanish</option>
+                <option value="pt-PT">Portuguese</option>
+                <option value="it-IT">Italian</option>
+                <option value="nl-NL">Dutch</option>
+                <option value="pl-PL">Polish</option>
+                <option value="ru-RU">Russian</option>
+                <option value="cs-CZ">Czech</option>
+                <option value="sk-SK">Slovak</option>
+                <option value="hu-HU">Hungarian</option>
+                <option value="bg-BG">Bulgarian</option>
+                <option value="ro-RO">Romanian</option>
+              </optgroup>
+              <optgroup label="── Asian ──">
+                <option value="zh-CN">Mandarin (Simplified)</option>
+              </optgroup>
+            </select>
+            <span class="lang-arrow">▼</span>
+          </div>
+
+          <button class="nbtn nbtn-stop" id="btnStop" onclick="stopRecording()" disabled>
+            ⏹ Stop Recording
+          </button>
+
+          <div class="translate-toggle-wrap">
+            <span class="tgl-icon">🌐</span>
+            <div class="tgl-text">
+              <span class="tgl-label">Translate to English</span>
+              <span class="tgl-status" id="tglStatus">ON</span>
+            </div>
+            <label class="tgl-switch" title="Toggle live translation to English">
+              <input type="checkbox" id="translateToggle" checked onchange="onTranslateToggle()">
+              <div class="tgl-track"></div>
+              <div class="tgl-thumb"></div>
+            </label>
+          </div>
+
+          <button class="nbtn nbtn-download" id="btnDownload" onclick="downloadTranscript()">
+            ⬇ Download Transcript
+          </button>
+
+        </div>
+      </div>
+
+      <div class="status-bar" id="statusBar">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Ready — select language and press Start Recording</span>
+        <span class="status-timer" id="recTimer" style="display:none">00:00</span>
+      </div>
+
+      <div class="transcript-wrap">
+        <div class="transcript-label-row">
+          <div class="sec-label" style="margin-bottom:0">Live Transcript</div>
+          <div class="word-count">Words: <span id="wordCount">0</span> &nbsp;|&nbsp; Lines: <span id="lineCount">0</span></div>
+        </div>
+        <textarea id="transcript" placeholder="Your transcript will appear here in real time as you speak...&#10;&#10;Supports continuous speech with automatic punctuation.&#10;You can also edit this text manually before generating outputs."></textarea>
+      </div>
+
+      <!-- AUDIO PROGRESS BAR — shown during MP3/MP4 transcription -->
+      <div class="audio-progress-wrap" id="audioProgressWrap">
+        <div class="audio-progress-label">
+          <span id="audioProgressFile">▶ Transcribing audio...</span>
+          <span id="audioProgressPct">0%</span>
+        </div>
+        <div class="audio-progress-track">
+          <div class="audio-progress-fill" id="audioProgressFill"></div>
+        </div>
+      </div>
+
+      <div class="upload-zone" onclick="document.getElementById('fileUpload').click()">
+        <div class="upload-zone-icon">📁</div>
+        <div class="upload-zone-text">
+          <b>Upload existing transcript or audio</b> — drag &amp; drop or click to browse<br>
+          <span style="font-size:11px">.txt &nbsp;·&nbsp; .docx &nbsp;·&nbsp; .pdf &nbsp;·&nbsp; .mp3 &nbsp;·&nbsp; .mp4 &nbsp;·&nbsp; Max 1 GB</span>
+        </div>
+        <input type="file" id="fileUpload" accept=".txt,.docx,.pdf,.mp3,.mp4" onchange="handleFileUpload(this)">
+      </div>
+
+    </div>
+
+  </div>
+
+  <footer class="footer">
+    <span>TRANSCRIPT · PRIVACY · COMPLIANCE</span>
+    <span id="footerStatus">SYSTEM READY</span>
+  </footer>
+
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════
+const PA_SHAREPOINT_URL = '';
+const GT_URL = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=';
+
+// ════════════════════════════════════════════
+//  SESSION
+// ════════════════════════════════════════════
+const sessionId = `TX-${Date.now()}`;
+
+// ════════════════════════════════════════════
+//  SPEECH STATE
+// ════════════════════════════════════════════
+const SR_CLASS     = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recObj         = null;
+let isRecording    = false;
+let restartLock    = false;
+let timerInterval  = null;
+let recSeconds     = 0;
+let confirmedText  = '';
+let lastFinalChunk = '';
+
+let translateEnabled = true;
+let translateQueue   = [];
+let isTranslating    = false;
+
+window.addEventListener('DOMContentLoaded', () => {
+  localStorage.removeItem('tx_transcript');
+  confirmedText = '';
+  document.getElementById('transcript').value = '';
+  updateStats();
+  updateTranslateUI();
+});
+
+// ════════════════════════════════════════════
+//  TRANSLATE TOGGLE
+// ════════════════════════════════════════════
+function onTranslateToggle() {
+  translateEnabled = document.getElementById('translateToggle').checked;
+  updateTranslateUI();
+}
+
+function updateTranslateUI() {
+  const status = document.getElementById('tglStatus');
+  const box    = document.getElementById('transcript');
+  if (translateEnabled) {
+    status.textContent = 'ON'; status.classList.remove('off');
+    box.placeholder = 'Speak in any language — transcript will appear in English...\n\nYour speech is being processed in real time.';
+  } else {
+    status.textContent = 'OFF'; status.classList.add('off');
+    box.placeholder = 'Your transcript will appear here in real time as you speak...\n\nSupports continuous speech with automatic punctuation.\nYou can also edit this text manually.';
+  }
+}
+
+// ════════════════════════════════════════════
+//  TRANSLATION (Backend Only)
+// ════════════════════════════════════════════
+async function translateToEnglish(text) {
+  if (!text || !text.trim()) return text;
+  try {
+    const res  = await fetch(GT_URL + encodeURIComponent(text.trim()));
+    const data = await res.json();
+    if (data && data[0]) return data[0].map(c => c[0]).filter(Boolean).join(' ').trim();
+    return text;
+  } catch (err) { return text; }
+}
+
+async function processTranslateQueue() {
+  if (isTranslating || translateQueue.length === 0) return;
+  isTranslating = true;
+  while (translateQueue.length > 0) {
+    const chunk = translateQueue.shift();
+    const translated = await translateToEnglish(chunk);
+    if (translated && translated !== lastFinalChunk) {
+      confirmedText += (confirmedText ? ' ' : '') + translated;
+      lastFinalChunk = translated;
+      localStorage.setItem('tx_transcript', confirmedText);
+      const box = document.getElementById('transcript');
+      box.value = confirmedText;
+      box.scrollTop = box.scrollHeight;
+      updateStats();
+    }
+  }
+  isTranslating = false;
+}
+
+// ════════════════════════════════════════════
+//  LIVE MIC
+// ════════════════════════════════════════════
+function buildRecObj(lang) {
+  const r = new SR_CLASS();
+  r.continuous = true; r.interimResults = true; r.maxAlternatives = 1; r.lang = lang;
+  r.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const chunk = e.results[i][0].transcript;
+      if (e.results[i].isFinal) {
+        const trimmed = chunk.trim();
+        if (!trimmed) continue;
+        if (translateEnabled) {
+          interim = '';
+          translateQueue.push(trimmed);
+          processTranslateQueue();
+          setStatus('translating', '🌐 Translating... · Recording active');
+          setTimeout(() => { if (isRecording) setStatus('recording', 'Recording in progress — speak clearly'); }, 1200);
+        } else {
+          if (trimmed !== lastFinalChunk) {
+            confirmedText += (confirmedText ? ' ' : '') + trimmed;
+            lastFinalChunk = trimmed;
+            localStorage.setItem('tx_transcript', confirmedText);
+          }
+          interim = '';
+        }
+      } else { interim += chunk; }
+    }
+    if (!translateEnabled) {
+      const box = document.getElementById('transcript');
+      box.value = confirmedText + (interim ? ' ' + interim : '');
+      box.scrollTop = box.scrollHeight;
+      updateStats();
+    } else if (interim) {
+      const box = document.getElementById('transcript');
+      box.value = confirmedText + (interim ? ' [' + interim + ']' : '');
+      box.scrollTop = box.scrollHeight;
+    }
+  };
+  r.onerror = (e) => {
+    if (['no-speech', 'aborted'].includes(e.error)) return;
+    if (e.error === 'not-allowed') { stopRecording(); setStatus('error', '⚠ Mic access denied — check browser permissions'); }
+  };
+  r.onend = () => {
+    if (!isRecording || restartLock) return;
+    restartLock = true;
+    setTimeout(() => { restartLock = false; if (!isRecording) return; try { recObj.start(); } catch(_) {} }, 150);
+  };
+  return r;
+}
+
+function destroyRecObj() {
+  if (!recObj) return;
+  recObj.onresult = null; recObj.onerror = null; recObj.onend = null;
+  try { recObj.stop(); } catch(_) {}
+  recObj = null;
+}
+
+function switchLanguage(select) {
+  if (!isRecording) return;
+  destroyRecObj();
+  const lang = select.value;
+  recObj = buildRecObj(lang);
+  try { recObj.start(); } catch(_) {}
+  const langLabel = select.options[select.selectedIndex].text;
+  const tMode = translateEnabled ? ' · 🌐 → English' : '';
+  setStatus('recording', `Recording in progress — listening in ${langLabel}${tMode}`);
+}
+
+function startRecording() {
+  if (!SR_CLASS) { alert('Speech Recognition not supported.\nUse Chrome or Edge on desktop.'); return; }
+  if (isRecording) return;
+  isRecording = true; restartLock = false;
+  confirmedText = document.getElementById('transcript').value.trim();
+  lastFinalChunk = ''; translateQueue = []; isTranslating = false;
+  destroyRecObj();
+  const lang = document.getElementById('languageSelect').value;
+  recObj = buildRecObj(lang);
+  setUIRecording(true);
+  startTimer();
+  const langLabel = document.getElementById('languageSelect').options[document.getElementById('languageSelect').selectedIndex].text;
+  setStatus('recording', `Recording in progress — listening in ${langLabel}`);
+  try { recObj.start(); }
+  catch(err) { if (!err.message.includes('already started')) setStatus('error', 'Could not start: ' + err.message); }
+}
+
+function stopRecording() {
+  if (!isRecording) return;
+  isRecording = false;
+
+  if (recObj) {
+    recObj.onend = null;
+    try { recObj.stop(); } catch(_) {}
+    setTimeout(() => {
+      if (recObj) recObj.onend = () => {
+        if (!isRecording || restartLock) return;
+        restartLock = true;
+        setTimeout(() => {
+          restartLock = false;
+          if (!isRecording) return;
+          try { recObj.start(); } catch(_) {}
+        }, 150);
+      };
+    }, 300);
+  }
+
+  stopTimer();
+  const box = document.getElementById('transcript');
+  box.value = confirmedText;
+  updateStats();
+  localStorage.setItem('tx_transcript', confirmedText);
+  setUIRecording(false);
+  document.getElementById('btnDownload').classList.add('visible');
+}
+
+function startTimer() {
+  recSeconds = 0;
+  document.getElementById('recTimer').style.display = 'inline';
+  timerInterval = setInterval(() => {
+    recSeconds++;
+    const m = String(Math.floor(recSeconds / 60)).padStart(2, '0');
+    const s = String(recSeconds % 60).padStart(2, '0');
+    document.getElementById('recTimer').textContent = `${m}:${s}`;
+  }, 1000);
+}
+function stopTimer() { clearInterval(timerInterval); }
+
+function setUIRecording(on) {
+  const bar  = document.getElementById('statusBar');
+  const stTxt = document.getElementById('statusText');
+  const btnS  = document.getElementById('btnStart');
+  const btnSt = document.getElementById('btnStop');
+  const box   = document.getElementById('transcript');
+  const ftr   = document.getElementById('footerStatus');
+  const lang  = document.getElementById('languageSelect');
+  const tgl   = document.getElementById('translateToggle');
+  if (on) {
+    bar.className = 'status-bar recording';
+    const langLabel = lang.options[lang.selectedIndex].text;
+    const tMode = translateEnabled ? ' · 🌐 → English' : '';
+    stTxt.textContent = `Recording in progress — listening in ${langLabel}${tMode}`;
+    btnS.disabled = true; btnS.classList.add('active');
+    btnSt.disabled = false;
+    box.classList.add('active-rec');
+    if (translateEnabled) box.classList.add('active-translate');
+    lang.disabled = false; tgl.disabled = true;
+    ftr.textContent = '● RECORDING · ' + sessionId;
+    document.getElementById('btnDownload').classList.remove('visible');
+  } else {
+    bar.className = 'status-bar done';
+    const dur = document.getElementById('recTimer').textContent || '00:00';
+    const wc  = confirmedText.split(/\s+/).filter(Boolean).length;
+    stTxt.textContent = `Recording complete · ${dur} · ${wc} words · Ready to download`;
+    btnS.disabled = false; btnS.classList.remove('active');
+    btnSt.disabled = true;
+    box.classList.remove('active-rec', 'active-translate');
+    lang.disabled = false; tgl.disabled = false;
+    ftr.textContent = 'RECORDING COMPLETE · ' + sessionId;
+    document.getElementById('recTimer').style.display = 'none';
+  }
+}
+
+function setStatus(type, msg) {
+  document.getElementById('statusBar').className = 'status-bar' + (type ? ' ' + type : '');
+  document.getElementById('statusText').textContent = msg;
+}
+
+function updateStats() {
+  const text  = document.getElementById('transcript').value.trim();
+  const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+  const lines = text ? text.split(/\n/).filter(Boolean).length : 0;
+  document.getElementById('wordCount').textContent = words;
+  document.getElementById('lineCount').textContent = lines;
+}
+
+// ════════════════════════════════════════════
+//  FILE UPLOAD
+// ════════════════════════════════════════════
+const MAX_FILE_SIZE = 1024 * 1024 * 1024;
+
+function handleFileUpload(input) {
+  const file = (input.files || [])[0];
+  if (!file) return;
+  if (file.size > MAX_FILE_SIZE) { setStatus('error', 'File too large — max 1GB'); return; }
+  const name = file.name.toLowerCase();
+
+  if (name.endsWith('.txt')) {
+    const rd = new FileReader();
+    rd.onload = (e) => {
+      confirmedText = e.target.result.trim();
+      document.getElementById('transcript').value = confirmedText;
+      localStorage.setItem('tx_transcript', confirmedText);
+      updateStats();
+      setStatus('done', `Loaded: ${file.name} · ${confirmedText.split(/\s+/).filter(Boolean).length} words`);
+      document.getElementById('btnDownload').classList.add('visible');
+    };
+    rd.readAsText(file);
+
+  } else if (name.endsWith('.pdf')) {
+    setStatus('recording', `Reading PDF: ${file.name}...`);
+    const rd = new FileReader();
+    rd.onload = async (e) => {
+      try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          fullText += content.items.map(item => item.str).join(' ') + '\n';
+        }
+        confirmedText = fullText.trim();
+        document.getElementById('transcript').value = confirmedText;
+        localStorage.setItem('tx_transcript', confirmedText);
+        updateStats();
+        setStatus('done', `PDF loaded: ${file.name} · ${pdf.numPages} pages`);
+        document.getElementById('btnDownload').classList.add('visible');
+      } catch (err) {
+        setStatus('error', `PDF read failed — ${err.message}`);
+      }
+    };
+    rd.readAsArrayBuffer(file);
+
+  } else if (name.endsWith('.docx')) {
+    setStatus('recording', `Reading DOCX: ${file.name}...`);
+    const rd = new FileReader();
+    rd.onload = async (e) => {
+      try {
+        const result = await mammoth.extractRawText({ arrayBuffer: e.target.result });
+        confirmedText = result.value.trim();
+        document.getElementById('transcript').value = confirmedText;
+        localStorage.setItem('tx_transcript', confirmedText);
+        updateStats();
+        setStatus('done', `DOCX loaded: ${file.name}`);
+        document.getElementById('btnDownload').classList.add('visible');
+      } catch (err) {
+        setStatus('error', `DOCX read failed — ${err.message}`);
+      }
+    };
+    rd.readAsArrayBuffer(file);
+
+  } else if (name.endsWith('.mp3') || name.endsWith('.mp4')) {
+    handleAudioUpload(file);
+  }
+}
+
+async function handleAudioUpload(file) {
+  const progressWrap = document.getElementById('audioProgressWrap');
+  const progressFile = document.getElementById('audioProgressFile');
+  progressWrap.classList.add('visible');
+  progressFile.textContent = `▶ Processing ${file.name}...`;
+  setStatus('recording', `Processing audio file...`);
+
+  try {
+    setProgress(20);
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const arrayBuffer = await file.arrayBuffer();
+    const decoded = await audioContext.decodeAudioData(arrayBuffer);
+    const mono = decoded.getChannelData(0);
+    const srcRate = decoded.sampleRate;
+    setProgress(42);
+    progressFile.textContent = `⚙ Resampling ${srcRate}Hz → 16kHz...`;
+    setStatus('recording', `🎵 Resampling audio — ${srcRate}Hz → 16kHz`);
+
+    const resampled = await new Promise((resolve, reject) => {
+      const blob      = new Blob([RESAMPLE_WORKER_CODE], { type: 'application/javascript' });
+      const workerURL = URL.createObjectURL(blob);
+      const worker    = new Worker(workerURL);
+      worker.onmessage = (e) => {
+        worker.terminate();
+        URL.revokeObjectURL(workerURL);
+        if (e.data.error) reject(new Error(e.data.error));
+        else resolve(e.data.resampled);
+      };
+      worker.onerror = (err) => {
+        worker.terminate();
+        URL.revokeObjectURL(workerURL);
+        reject(new Error(err.message));
+      };
+      worker.postMessage({ mono, srcRate }, [mono.buffer]);
+    });
+
+    setProgress(65);
+    progressFile.textContent = `▶ Whisper transcribing: ${file.name}`;
+    setStatus('recording', `🎙 Whisper transcribing...`);
+
+    if (!resampled || resampled.length === 0) {
+      setStatus('error', `Audio decode returned empty — file may be corrupted`);
+      progressWrap.classList.remove('visible');
+      return;
+    }
+
+    const selLang     = document.getElementById('languageSelect').value;
+    const whisperLang = (selLang === '' || selLang === 'auto')
+      ? undefined
+      : selLang.split('-')[0];
+
+    const result = await asr(resampled, {
+      return_timestamps: false,
+      task: 'transcribe',
+      language: whisperLang,
+      chunk_length_s: 30,
+      stride_length_s: 5,
+    });
+
+    setProgress(92);
+
+    let rawText = '';
+    if (result && typeof result.text === 'string') {
+      rawText = result.text.trim();
+    } else if (Array.isArray(result)) {
+      rawText = result.map(r => r.text || '').join(' ').trim();
+    }
+
+    if (!rawText) {
+      setStatus('error', `No speech detected in ${file.name} — check audio quality`);
+      progressWrap.classList.remove('visible');
+      return;
+    }
+
+    if (translateEnabled) {
+      setStatus('translating', `🌐 Translating → English...`);
+      progressFile.textContent = '🌐 Translating...';
+      setProgress(96);
+      const sentences = rawText.match(/[^.!?]+[.!?]*/g) || [rawText];
+      for (const s of sentences) { if (s.trim()) translateQueue.push(s.trim()); }
+      await processTranslateQueue();
+    } else {
+      confirmedText = rawText;
+      localStorage.setItem('tx_transcript', confirmedText);
+      const box = document.getElementById('transcript');
+      box.value = confirmedText;
+      box.scrollTop = box.scrollHeight;
+      updateStats();
+    }
+
+    setProgress(100);
+    setTimeout(() => progressWrap.classList.remove('visible'), 2500);
+
+    const wc = confirmedText.split(/\s+/).filter(Boolean).length;
+    setStatus('done', `✓ Transcription complete · ${file.name} · ${wc} words`);
+    document.getElementById('footerStatus').textContent = 'AUDIO TRANSCRIPTION COMPLETE';
+    document.getElementById('btnDownload').classList.add('visible');
+
+  } catch (err) {
+    console.error('Audio transcription error:', err);
+    setStatus('error', `Transcription failed — ${err.message}`);
+    progressWrap.classList.remove('visible');
+    document.getElementById('footerStatus').textContent = 'TRANSCRIPTION FAILED';
+  }
+}
+
+function setProgress(pct) {
+  document.getElementById('audioProgressFill').style.width = pct + '%';
+  document.getElementById('audioProgressPct').textContent = pct + '%';
+}
+
+const RESAMPLE_WORKER_CODE = `
+self.onmessage = (e) => {
+  const { mono, srcRate } = e.data;
+  const targetRate = 16000;
+  const ratio = targetRate / srcRate;
+  const newLen = Math.ceil(mono.length * ratio);
+  const resampled = new Float32Array(newLen);
+  let j = 0;
+  for (let i = 0; i < newLen; i++) {
+    const pos = i / ratio;
+    const idx = Math.floor(pos);
+    const frac = pos - idx;
+    if (idx + 1 < mono.length) {
+      resampled[i] = mono[idx] * (1 - frac) + mono[idx + 1] * frac;
+    } else {
+      resampled[i] = mono[idx] || 0;
+    }
+  }
+  self.postMessage({ resampled }, [resampled.buffer]);
+};
+`;
+
+// ════════════════════════════════════════════
+//  DOWNLOAD TRANSCRIPT
+// ════════════════════════════════════════════
+async function downloadTranscript() {
+  const text = document.getElementById('transcript').value.trim();
+  if (!text) { alert('No transcript to download.'); return; }
+  const fileName = `transcript_${sessionId}_${new Date().toISOString().slice(0,10)}.txt`;
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setStatus('done', '✓ Transcript downloaded');
+}
+
+// ════════════════════════════════════════════
+//  DRAG & DROP + MANUAL EDIT
+// ════════════════════════════════════════════
+const ta = document.getElementById('transcript');
+ta.addEventListener('input', () => {
+  confirmedText = ta.value;
+  localStorage.setItem('tx_transcript', confirmedText);
+  updateStats();
+});
+ta.addEventListener('drop', (e) => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleFileUpload({ files: [file] }); });
+ta.addEventListener('dragover', (e) => e.preventDefault());
+</script>
+</body>
+</html>

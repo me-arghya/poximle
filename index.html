@@ -393,10 +393,6 @@ let timerInterval  = null;
 let recSeconds     = 0;
 let confirmedText  = '';
 let lastFinalChunk = '';
-let lastRawPhrase   = '';
-let pendingBuffer   = [];
-let debounceTimer   = null;
-const PAUSE_MS       = 1200; // how long to wait for a pause before translating what was said
 
 let translateEnabled = true;
 let translateQueue   = [];
@@ -443,15 +439,28 @@ async function translateToEnglish(text) {
   } catch (err) { return text; }
 }
 
-function flushPendingBuffer() {
-  if (pendingBuffer.length === 0) return;
-  const combined = pendingBuffer.join(' ');
-  lastRawPhrase = pendingBuffer[pendingBuffer.length - 1];
-  pendingBuffer = [];
-  translateQueue.push(combined);
-  processTranslateQueue();
-  setStatus('translating', '🌐 Translating...');
-  setTimeout(() => { if (isRecording) setStatus('recording', 'Recording in progress — speak clearly'); }, 1200);
+// Splits long text into ~3500-char chunks on paragraph/sentence boundaries,
+// translates each in order, and reports progress via onProgress(doneChunks, totalChunks).
+async function translateLongText(text, onProgress) {
+  const CHUNK_SIZE = 3500;
+  if (!text || !text.trim()) return '';
+  const chunks = [];
+  let rest = text.trim();
+  while (rest.length > 0) {
+    if (rest.length <= CHUNK_SIZE) { chunks.push(rest); break; }
+    let cut = rest.lastIndexOf('\n', CHUNK_SIZE);
+    if (cut < CHUNK_SIZE * 0.5) cut = rest.lastIndexOf('. ', CHUNK_SIZE);
+    if (cut < CHUNK_SIZE * 0.5) cut = CHUNK_SIZE;
+    chunks.push(rest.slice(0, cut + 1));
+    rest = rest.slice(cut + 1);
+  }
+  const translatedParts = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const translated = await translateToEnglish(chunks[i]);
+    translatedParts.push(translated);
+    if (onProgress) onProgress(i + 1, chunks.length);
+  }
+  return translatedParts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
 async function processTranslateQueue() {
@@ -488,16 +497,10 @@ function buildRecObj(lang) {
         if (!trimmed) continue;
         if (translateEnabled) {
           interim = '';
-          const lastInBuffer = pendingBuffer.length
-            ? pendingBuffer[pendingBuffer.length - 1]
-            : lastRawPhrase;
-          // skip only an exact, immediate repeat of the last captured phrase
-          if (trimmed.toLowerCase() !== lastInBuffer.toLowerCase()) {
-            pendingBuffer.push(trimmed);
-          }
-          clearTimeout(debounceTimer);
-          setStatus('recording', '🎙 Listening — pause briefly to translate');
-          debounceTimer = setTimeout(flushPendingBuffer, PAUSE_MS);
+          translateQueue.push(trimmed);
+          processTranslateQueue();
+          setStatus('translating', '🌐 Translating... · Recording active');
+          setTimeout(() => { if (isRecording) setStatus('recording', 'Recording in progress — speak clearly'); }, 1200);
         } else {
           if (trimmed !== lastFinalChunk) {
             confirmedText += (confirmedText ? ' ' : '') + trimmed;
@@ -554,7 +557,7 @@ function startRecording() {
   if (isRecording) return;
   isRecording = true; restartLock = false;
   confirmedText = document.getElementById('transcript').value.trim();
-  lastFinalChunk = ''; lastRawPhrase = ''; pendingBuffer = []; clearTimeout(debounceTimer); translateQueue = []; isTranslating = false;
+  lastFinalChunk = ''; translateQueue = []; isTranslating = false;
   destroyRecObj();
   const lang = document.getElementById('languageSelect').value;
   recObj = buildRecObj(lang);
@@ -569,8 +572,6 @@ function startRecording() {
 function stopRecording() {
   if (!isRecording) return;
   isRecording = false;
-  clearTimeout(debounceTimer);
-  flushPendingBuffer();
 
   if (recObj) {
     recObj.onend = null;
@@ -662,6 +663,31 @@ function updateStats() {
 // ════════════════════════════════════════════
 const MAX_FILE_SIZE = 1024 * 1024 * 1024;
 
+// Common path for all uploaded/extracted text: optionally sends it to the
+// Google Translate backend (GT_URL) before displaying it in the transcript box.
+async function handleExtractedText(rawText, fileName, extraInfo) {
+  if (!rawText) { setStatus('error', `No text found in: ${fileName}`); return; }
+
+  if (translateEnabled) {
+    setStatus('translating', `🌐 Translating ${fileName} to English...`);
+    const finalText = await translateLongText(rawText, (done, total) => {
+      if (total > 1) setStatus('translating', `🌐 Translating ${fileName}... (${done}/${total})`);
+    });
+    confirmedText = finalText;
+  } else {
+    confirmedText = rawText;
+  }
+
+  document.getElementById('transcript').value = confirmedText;
+  localStorage.setItem('tx_transcript', confirmedText);
+  updateStats();
+  const words = confirmedText.split(/\s+/).filter(Boolean).length;
+  const infoStr = extraInfo ? ` · ${extraInfo}` : '';
+  const modeStr = translateEnabled ? ' · translated to English' : '';
+  setStatus('done', `Loaded: ${fileName}${infoStr} · ${words} words${modeStr}`);
+  document.getElementById('btnDownload').classList.add('visible');
+}
+
 function handleFileUpload(input) {
   const file = (input.files || [])[0];
   if (!file) return;
@@ -670,13 +696,9 @@ function handleFileUpload(input) {
 
   if (name.endsWith('.txt')) {
     const rd = new FileReader();
-    rd.onload = (e) => {
-      confirmedText = e.target.result.trim();
-      document.getElementById('transcript').value = confirmedText;
-      localStorage.setItem('tx_transcript', confirmedText);
-      updateStats();
-      setStatus('done', `Loaded: ${file.name} · ${confirmedText.split(/\s+/).filter(Boolean).length} words`);
-      document.getElementById('btnDownload').classList.add('visible');
+    rd.onload = async (e) => {
+      const rawText = e.target.result.trim();
+      await handleExtractedText(rawText, file.name);
     };
     rd.readAsText(file);
 
@@ -693,12 +715,7 @@ function handleFileUpload(input) {
           const content = await page.getTextContent();
           fullText += content.items.map(item => item.str).join(' ') + '\n';
         }
-        confirmedText = fullText.trim();
-        document.getElementById('transcript').value = confirmedText;
-        localStorage.setItem('tx_transcript', confirmedText);
-        updateStats();
-        setStatus('done', `PDF loaded: ${file.name} · ${pdf.numPages} pages`);
-        document.getElementById('btnDownload').classList.add('visible');
+        await handleExtractedText(fullText.trim(), file.name, `${pdf.numPages} pages`);
       } catch (err) {
         setStatus('error', `PDF read failed — ${err.message}`);
       }
@@ -711,12 +728,7 @@ function handleFileUpload(input) {
     rd.onload = async (e) => {
       try {
         const result = await mammoth.extractRawText({ arrayBuffer: e.target.result });
-        confirmedText = result.value.trim();
-        document.getElementById('transcript').value = confirmedText;
-        localStorage.setItem('tx_transcript', confirmedText);
-        updateStats();
-        setStatus('done', `DOCX loaded: ${file.name}`);
-        document.getElementById('btnDownload').classList.add('visible');
+        await handleExtractedText(result.value.trim(), file.name);
       } catch (err) {
         setStatus('error', `DOCX read failed — ${err.message}`);
       }

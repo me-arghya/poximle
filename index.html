@@ -393,6 +393,7 @@ let timerInterval  = null;
 let recSeconds     = 0;
 let confirmedText  = '';
 let lastFinalChunk = '';
+let lastRawChunk   = '';
 
 let translateEnabled = true;
 let translateQueue   = [];
@@ -473,6 +474,12 @@ function buildRecObj(lang) {
         if (!trimmed) continue;
         if (translateEnabled) {
           interim = '';
+          const norm = trimmed.toLowerCase().replace(/\s+/g, ' ');
+          const prevNorm = lastRawChunk.toLowerCase().replace(/\s+/g, ' ');
+          const isRepeat = norm === prevNorm ||
+            (prevNorm.length > 0 && (norm.includes(prevNorm) || prevNorm.includes(norm)));
+          if (isRepeat) continue;
+          lastRawChunk = trimmed;
           translateQueue.push(trimmed);
           processTranslateQueue();
           setStatus('translating', '🌐 Translating... · Recording active');
@@ -533,7 +540,7 @@ function startRecording() {
   if (isRecording) return;
   isRecording = true; restartLock = false;
   confirmedText = document.getElementById('transcript').value.trim();
-  lastFinalChunk = ''; translateQueue = []; isTranslating = false;
+  lastFinalChunk = ''; lastRawChunk = ''; translateQueue = []; isTranslating = false;
   destroyRecObj();
   const lang = document.getElementById('languageSelect').value;
   recObj = buildRecObj(lang);

@@ -439,28 +439,33 @@ async function translateToEnglish(text) {
   } catch (err) { return text; }
 }
 
-// Splits long text into ~3500-char chunks on paragraph/sentence boundaries,
-// translates each in order, and reports progress via onProgress(doneChunks, totalChunks).
-async function translateLongText(text, onProgress) {
-  const CHUNK_SIZE = 3500;
-  if (!text || !text.trim()) return '';
+async function translateChunkedText(text) {
+  if (!text || !text.trim()) return text;
   const chunks = [];
-  let rest = text.trim();
-  while (rest.length > 0) {
-    if (rest.length <= CHUNK_SIZE) { chunks.push(rest); break; }
-    let cut = rest.lastIndexOf('\n', CHUNK_SIZE);
-    if (cut < CHUNK_SIZE * 0.5) cut = rest.lastIndexOf('. ', CHUNK_SIZE);
-    if (cut < CHUNK_SIZE * 0.5) cut = CHUNK_SIZE;
-    chunks.push(rest.slice(0, cut + 1));
-    rest = rest.slice(cut + 1);
+  let currentChunk = '';
+  // Split by common delimiters without consuming them
+  const sentences = text.split(/(?<=[.!?])\s+/g);
+
+  for (const sentence of sentences) {
+    const trimmedSentence = sentence.trim();
+    if (!trimmedSentence) continue;
+    
+    if ((currentChunk + ' ' + trimmedSentence).length > 2000) {
+      if (currentChunk) chunks.push(currentChunk);
+      currentChunk = trimmedSentence;
+    } else {
+      currentChunk += (currentChunk ? ' ' : '') + trimmedSentence;
+    }
   }
-  const translatedParts = [];
+  if (currentChunk) chunks.push(currentChunk);
+
+  let translatedFull = '';
   for (let i = 0; i < chunks.length; i++) {
-    const translated = await translateToEnglish(chunks[i]);
-    translatedParts.push(translated);
-    if (onProgress) onProgress(i + 1, chunks.length);
+    setStatus('translating', `🌐 Translating... (${i + 1}/${chunks.length})`);
+    const translatedChunk = await translateToEnglish(chunks[i]);
+    translatedFull += (translatedFull ? ' ' : '') + translatedChunk;
   }
-  return translatedParts.join(' ').replace(/\s+/g, ' ').trim();
+  return translatedFull;
 }
 
 async function processTranslateQueue() {
@@ -488,12 +493,15 @@ async function processTranslateQueue() {
 function buildRecObj(lang) {
   const r = new SR_CLASS();
   r.continuous = true; r.interimResults = true; r.maxAlternatives = 1; r.lang = lang;
+  let lastProcessedIndex = -1;
   r.onresult = (e) => {
     let interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const chunk = e.results[i][0].transcript;
       if (e.results[i].isFinal) {
         const trimmed = chunk.trim();
+        if (i <= lastProcessedIndex) continue;
+        lastProcessedIndex = i;
         if (!trimmed) continue;
         if (translateEnabled) {
           interim = '';
@@ -663,31 +671,6 @@ function updateStats() {
 // ════════════════════════════════════════════
 const MAX_FILE_SIZE = 1024 * 1024 * 1024;
 
-// Common path for all uploaded/extracted text: optionally sends it to the
-// Google Translate backend (GT_URL) before displaying it in the transcript box.
-async function handleExtractedText(rawText, fileName, extraInfo) {
-  if (!rawText) { setStatus('error', `No text found in: ${fileName}`); return; }
-
-  if (translateEnabled) {
-    setStatus('translating', `🌐 Translating ${fileName} to English...`);
-    const finalText = await translateLongText(rawText, (done, total) => {
-      if (total > 1) setStatus('translating', `🌐 Translating ${fileName}... (${done}/${total})`);
-    });
-    confirmedText = finalText;
-  } else {
-    confirmedText = rawText;
-  }
-
-  document.getElementById('transcript').value = confirmedText;
-  localStorage.setItem('tx_transcript', confirmedText);
-  updateStats();
-  const words = confirmedText.split(/\s+/).filter(Boolean).length;
-  const infoStr = extraInfo ? ` · ${extraInfo}` : '';
-  const modeStr = translateEnabled ? ' · translated to English' : '';
-  setStatus('done', `Loaded: ${fileName}${infoStr} · ${words} words${modeStr}`);
-  document.getElementById('btnDownload').classList.add('visible');
-}
-
 function handleFileUpload(input) {
   const file = (input.files || [])[0];
   if (!file) return;
@@ -697,8 +680,20 @@ function handleFileUpload(input) {
   if (name.endsWith('.txt')) {
     const rd = new FileReader();
     rd.onload = async (e) => {
-      const rawText = e.target.result.trim();
-      await handleExtractedText(rawText, file.name);
+      let text = e.target.result.trim();
+      if (translateEnabled) {
+        setStatus("translating", `Translating TXT: ${file.name}...`);
+        text = await translateChunkedText(text);
+      }
+      const space = confirmedText && text ? "\n\n" : "";
+      confirmedText = confirmedText + space + text;
+      const box = document.getElementById('transcript');
+        box.value = confirmedText;
+        box.scrollTop = box.scrollHeight;
+      localStorage.setItem('tx_transcript', confirmedText);
+      updateStats();
+      setStatus('done', `Loaded: ${file.name} · ${text.split(/\s+/).filter(Boolean).length} words`);
+      document.getElementById('btnDownload').classList.add('visible');
     };
     rd.readAsText(file);
 
@@ -715,7 +710,20 @@ function handleFileUpload(input) {
           const content = await page.getTextContent();
           fullText += content.items.map(item => item.str).join(' ') + '\n';
         }
-        await handleExtractedText(fullText.trim(), file.name, `${pdf.numPages} pages`);
+        let text = fullText.trim();
+        if (translateEnabled) {
+          setStatus("translating", `Translating PDF: ${file.name}...`);
+          text = await translateChunkedText(text);
+        }
+        const space = confirmedText && text ? "\n\n" : "";
+        confirmedText = confirmedText + space + text;
+        const box = document.getElementById('transcript');
+        box.value = confirmedText;
+        box.scrollTop = box.scrollHeight;
+        localStorage.setItem('tx_transcript', confirmedText);
+        updateStats();
+        setStatus('done', `PDF loaded: ${file.name} · ${pdf.numPages} pages`);
+        document.getElementById('btnDownload').classList.add('visible');
       } catch (err) {
         setStatus('error', `PDF read failed — ${err.message}`);
       }
@@ -728,7 +736,20 @@ function handleFileUpload(input) {
     rd.onload = async (e) => {
       try {
         const result = await mammoth.extractRawText({ arrayBuffer: e.target.result });
-        await handleExtractedText(result.value.trim(), file.name);
+        let text = result.value.trim();
+        if (translateEnabled) {
+          setStatus("translating", `Translating DOCX: ${file.name}...`);
+          text = await translateChunkedText(text);
+        }
+        const space = confirmedText && text ? "\n\n" : "";
+        confirmedText = confirmedText + space + text;
+        const box = document.getElementById('transcript');
+        box.value = confirmedText;
+        box.scrollTop = box.scrollHeight;
+        localStorage.setItem('tx_transcript', confirmedText);
+        updateStats();
+        setStatus('done', `DOCX loaded: ${file.name}`);
+        document.getElementById('btnDownload').classList.add('visible');
       } catch (err) {
         setStatus('error', `DOCX read failed — ${err.message}`);
       }
@@ -760,10 +781,48 @@ async function downloadTranscript() {
 //  DRAG & DROP + MANUAL EDIT
 // ════════════════════════════════════════════
 const ta = document.getElementById('transcript');
-ta.addEventListener('input', () => {
+let typingTimer = null;
+const TYPING_DELAY = 1500;
+ta.addEventListener('paste', async (e) => {
+  if (!translateEnabled) return;
+  e.preventDefault();
+  let pastedText = (e.clipboardData || window.clipboardData).getData('text');
+  if (!pastedText) return;
+  setStatus('translating', `Translating pasted text...`);
+  const translated = await translateChunkedText(pastedText);
+  const selStart = ta.selectionStart;
+  const selEnd = ta.selectionEnd;
+  const val = ta.value;
+  ta.value = val.substring(0, selStart) + translated + val.substring(selEnd);
+  ta.selectionStart = ta.selectionEnd = selStart + translated.length;
   confirmedText = ta.value;
   localStorage.setItem('tx_transcript', confirmedText);
   updateStats();
+  setStatus('done', `Pasted text translated`);
+});
+ta.addEventListener('input', (e) => {
+  confirmedText = ta.value;
+  localStorage.setItem('tx_transcript', confirmedText);
+  updateStats();
+  if (!translateEnabled || isRecording || e.inputType === 'insertFromPaste') return;
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(async () => {
+    const textToTranslate = ta.value;
+    if (!textToTranslate.trim()) return;
+    setStatus('translating', 'Translating typed text...');
+    const translated = await translateChunkedText(textToTranslate);
+    if (ta.value === textToTranslate) {
+      const selStart = ta.selectionStart;
+      ta.value = translated;
+      confirmedText = translated;
+      localStorage.setItem('tx_transcript', confirmedText);
+      updateStats();
+      if (selStart <= translated.length) {
+        ta.selectionStart = ta.selectionEnd = selStart;
+      }
+      setStatus('done', 'Text translated');
+    }
+  }, TYPING_DELAY);
 });
 ta.addEventListener('drop', (e) => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleFileUpload({ files: [file] }); });
 ta.addEventListener('dragover', (e) => e.preventDefault());

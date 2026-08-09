@@ -393,6 +393,10 @@ let timerInterval  = null;
 let recSeconds     = 0;
 let confirmedText  = '';
 let lastFinalChunk = '';
+let lastRawPhrase   = '';
+let pendingBuffer   = [];
+let debounceTimer   = null;
+const PAUSE_MS       = 1200; // how long to wait for a pause before translating what was said
 
 let translateEnabled = true;
 let translateQueue   = [];
@@ -439,6 +443,17 @@ async function translateToEnglish(text) {
   } catch (err) { return text; }
 }
 
+function flushPendingBuffer() {
+  if (pendingBuffer.length === 0) return;
+  const combined = pendingBuffer.join(' ');
+  lastRawPhrase = pendingBuffer[pendingBuffer.length - 1];
+  pendingBuffer = [];
+  translateQueue.push(combined);
+  processTranslateQueue();
+  setStatus('translating', '🌐 Translating...');
+  setTimeout(() => { if (isRecording) setStatus('recording', 'Recording in progress — speak clearly'); }, 1200);
+}
+
 async function processTranslateQueue() {
   if (isTranslating || translateQueue.length === 0) return;
   isTranslating = true;
@@ -473,10 +488,16 @@ function buildRecObj(lang) {
         if (!trimmed) continue;
         if (translateEnabled) {
           interim = '';
-          translateQueue.push(trimmed);
-          processTranslateQueue();
-          setStatus('translating', '🌐 Translating... · Recording active');
-          setTimeout(() => { if (isRecording) setStatus('recording', 'Recording in progress — speak clearly'); }, 1200);
+          const lastInBuffer = pendingBuffer.length
+            ? pendingBuffer[pendingBuffer.length - 1]
+            : lastRawPhrase;
+          // skip only an exact, immediate repeat of the last captured phrase
+          if (trimmed.toLowerCase() !== lastInBuffer.toLowerCase()) {
+            pendingBuffer.push(trimmed);
+          }
+          clearTimeout(debounceTimer);
+          setStatus('recording', '🎙 Listening — pause briefly to translate');
+          debounceTimer = setTimeout(flushPendingBuffer, PAUSE_MS);
         } else {
           if (trimmed !== lastFinalChunk) {
             confirmedText += (confirmedText ? ' ' : '') + trimmed;
@@ -533,7 +554,7 @@ function startRecording() {
   if (isRecording) return;
   isRecording = true; restartLock = false;
   confirmedText = document.getElementById('transcript').value.trim();
-  lastFinalChunk = ''; translateQueue = []; isTranslating = false;
+  lastFinalChunk = ''; lastRawPhrase = ''; pendingBuffer = []; clearTimeout(debounceTimer); translateQueue = []; isTranslating = false;
   destroyRecObj();
   const lang = document.getElementById('languageSelect').value;
   recObj = buildRecObj(lang);
@@ -548,6 +569,8 @@ function startRecording() {
 function stopRecording() {
   if (!isRecording) return;
   isRecording = false;
+  clearTimeout(debounceTimer);
+  flushPendingBuffer();
 
   if (recObj) {
     recObj.onend = null;

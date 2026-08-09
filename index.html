@@ -393,8 +393,6 @@ let timerInterval  = null;
 let recSeconds     = 0;
 let confirmedText  = '';
 let lastFinalChunk = '';
-let lastRawChunk   = '';
-let lastRawChunkTime = 0;
 
 let translateEnabled = true;
 let translateQueue   = [];
@@ -475,28 +473,6 @@ function buildRecObj(lang) {
         if (!trimmed) continue;
         if (translateEnabled) {
           interim = '';
-          const norm = trimmed.toLowerCase().replace(/\s+/g, ' ');
-          const prevNorm = lastRawChunk.toLowerCase().replace(/\s+/g, ' ');
-          const now = Date.now();
-          const withinRestartWindow = (now - lastRawChunkTime) < 3000;
-
-          let isRepeat = false;
-          if (norm === prevNorm) {
-            isRepeat = true;
-          } else if (withinRestartWindow && prevNorm.length > 0) {
-            const wordsA = norm.split(' ').filter(Boolean);
-            const wordsB = prevNorm.split(' ').filter(Boolean);
-            const setB = new Set(wordsB);
-            const overlapCount = wordsA.filter(w => setB.has(w)).length;
-            const shorterLen = Math.min(wordsA.length, wordsB.length);
-            const overlapRatio = shorterLen > 0 ? overlapCount / shorterLen : 0;
-            // only flag as a restart-echo if it's short AND heavily overlapping
-            if (shorterLen <= 4 && overlapRatio >= 0.75) isRepeat = true;
-          }
-
-          if (isRepeat) { lastRawChunkTime = now; continue; }
-          lastRawChunk = trimmed;
-          lastRawChunkTime = now;
           translateQueue.push(trimmed);
           processTranslateQueue();
           setStatus('translating', '🌐 Translating... · Recording active');
@@ -557,7 +533,7 @@ function startRecording() {
   if (isRecording) return;
   isRecording = true; restartLock = false;
   confirmedText = document.getElementById('transcript').value.trim();
-  lastFinalChunk = ''; lastRawChunk = ''; lastRawChunkTime = 0; translateQueue = []; isTranslating = false;
+  lastFinalChunk = ''; translateQueue = []; isTranslating = false;
   destroyRecObj();
   const lang = document.getElementById('languageSelect').value;
   recObj = buildRecObj(lang);

@@ -96,7 +96,7 @@ textarea.live{border-color:rgba(57,255,20,.35)}
 const $ = id => document.getElementById(id);
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, on = false, tInt = null, secs = 0;
-let queue = [], busy = false;
+let queue = [], busy = false, running = false, lastInterim = '', watchdog = null;
 
 /* ---------- translation (free Google endpoint, with retry) ---------- */
 async function translate(text, tries = 3) {
@@ -139,15 +139,27 @@ function buildRec() {
       if (e.results[i].isFinal) { if (t) { queue.push(t); drain(); } }
       else interim += ' ' + t;
     }
-    showInterim(interim.trim());
+    lastInterim = interim.trim();
+    showInterim(lastInterim);
   };
+  r.onstart = () => { running = true; if (on) status('recording', 'Listening for Romanian… speak or play audio near the mic'); };
   r.onerror = e => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { stopRec(); status('error', '⚠ Microphone blocked — allow mic access in your browser and try again.'); }
     else if (e.error === 'audio-capture') { stopRec(); status('error', '⚠ No microphone found.'); }
-    else if (e.error === 'network') status('error', '⚠ Network problem — speech recognition needs internet.');
+    else if (e.error === 'network') status('error', '⚠ Network problem — reconnecting…');
   };
-  r.onend = () => { if (on) setTimeout(() => { if (on) { try { r.start(); } catch (_) {} } }, 120); };
+  /* Chrome ends the session after silence / about a minute: save what was heard, then reconnect */
+  r.onend = () => { running = false; flushInterim(); if (on) restartSoon(); };
   return r;
+}
+function flushInterim() {
+  if (lastInterim) { queue.push(lastInterim); lastInterim = ''; drain(); }
+}
+function restartSoon() {
+  setTimeout(() => {
+    if (!on || running) return;
+    try { rec = buildRec(); rec.start(); } catch (_) { running = false; }
+  }, 250);
 }
 
 /* text boxes are never rewritten while recording — only appended to */
@@ -176,16 +188,19 @@ async function drain() {
 function startRec() {
   if (!SR) { status('error', '⚠ This browser has no speech recognition. Open Setlingo in Chrome or Edge (Android or desktop).'); return; }
   if (on) return;
-  queue = []; on = true;
+  queue = []; on = true; running = false; lastInterim = '';
   rec = buildRec();
   try { rec.start(); } catch (e) { status('error', '⚠ ' + e.message); on = false; return; }
+  clearInterval(watchdog);
+  watchdog = setInterval(() => { if (on && !running) restartSoon(); }, 2500);  /* safety net if a restart ever fails */
   ui(true); startTimer();
   status('recording', 'Listening for Romanian… speak or play audio near the mic');
 }
 async function stopRec() {
   if (!on) return;
-  on = false;
+  on = false; clearInterval(watchdog);
   if (rec) { rec.onend = null; try { rec.stop(); } catch (_) {} }
+  flushInterim();
   clearInterval(tInt);
   status('', '🌐 Finishing last sentences…');
   await new Promise(r => setTimeout(r, 700));

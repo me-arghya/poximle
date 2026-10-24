@@ -36,7 +36,6 @@ body{font-family:var(--font);background:var(--bg);background-image:radial-gradie
 .status.done{color:var(--blue)}
 .timer{margin-left:auto;letter-spacing:1px}
 
-.hearing{margin:8px 16px 0;min-height:22px;font:12.5px var(--mono);color:var(--green);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .panes{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:6px 16px 10px}
 .pane{display:flex;flex-direction:column;min-height:0}
@@ -71,7 +70,6 @@ textarea.live{border-color:rgba(57,255,20,.4)}
   </div>
 
   <div class="status" id="status"><div class="dot"></div><span id="statusText">Tap the mic and speak Romanian.</span><span class="timer" id="timer" style="display:none">00:00</span></div>
-  <div class="hearing" id="hearing"></div>
 
   <div class="panes">
     <div class="pane en">
@@ -159,7 +157,6 @@ function buildRec() {
       } else interim += ' ' + t;
     }
     r._interim = interim.trim();
-    $('hearing').textContent = r._interim ? '🎧 ' + r._interim : '';
   };
   r.onerror = e => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { stopRec(); status('error', '⚠ Microphone blocked — allow mic access for this site and try again.'); }
@@ -169,7 +166,6 @@ function buildRec() {
   r.onend = () => {
     running = false;
     if (!r._committed && r._interim) commit(r._interim);   // save half-heard phrase only if no final arrived
-    $('hearing').textContent = '';
     if (on) restartSoon();
   };
   return r;
@@ -218,7 +214,7 @@ async function stopRec() {
   status('', '🌐 Finishing…');
   await new Promise(r => setTimeout(r, 600));
   while (busy || queue.length) { drain(); await new Promise(r => setTimeout(r, 200)); }
-  $('hearing').textContent = ''; stats(); ui(false);
+  stats(); ui(false);
   status('done', `Done · ${$('timer').textContent} · ${wordsOf($('english').value)} words`);
   if ($('english').value.trim()) $('btnDl').classList.remove('hide');
 }
@@ -242,7 +238,7 @@ const wordsOf = t => (t.trim() ? t.trim().split(/\s+/).length : 0);
 function stats() { $('wc').textContent = wordsOf($('english').value); }
 function clearAll() {
   if (on) return;
-  $('original').value = ''; $('english').value = ''; $('hearing').textContent = '';
+  $('original').value = ''; $('english').value = '';
   $('btnDl').classList.add('hide'); $('timer').style.display = 'none'; stats(); status('', 'Cleared. Tap the mic and speak Romanian.');
 }
 async function copyEnglish() {

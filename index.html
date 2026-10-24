@@ -23,7 +23,8 @@ body{font-family:var(--font);background:var(--bg);background-image:radial-gradie
 .logo{width:34px;height:34px;border-radius:10px;border:1.5px solid var(--blue);display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 12px rgba(0,200,255,.3)}
 .name{font:20px var(--mono);color:var(--blue);letter-spacing:2px;line-height:1}
 .sub{font-size:10px;color:var(--mute);letter-spacing:2px;margin-top:3px}
-.chips{display:flex;gap:8px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 8px}
+.chip.on{border-color:var(--teal);color:var(--teal);background:rgba(0,255,213,.12);box-shadow:0 0 12px rgba(0,255,213,.25)}
 .chip{height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--dim);background:var(--card);color:var(--blue);font:600 12px var(--font);display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .chip.hide{display:none}
 .chip input{display:none}
@@ -63,10 +64,11 @@ textarea.live{border-color:rgba(57,255,20,.4)}
 <div class="app">
   <div class="top">
     <div class="brand"><div class="logo">🎤</div><div><div class="name">SETLINGO</div><div class="sub">RO → EN</div></div></div>
-    <div class="chips">
-      <label class="chip">📁 Upload<input type="file" id="file" accept=".txt,.docx,.pdf" onchange="uploadFile(this)"></label>
-      <button class="chip hide" id="btnDl" onclick="download()">⬇ Save</button>
-    </div>
+  </div>
+  <div class="chips">
+    <label class="chip" id="bgChip">🎵 Background mode<input type="checkbox" id="bgToggle" onchange="bgChange()"></label>
+    <label class="chip">📁 Upload<input type="file" id="file" accept=".txt,.docx,.pdf" onchange="uploadFile(this)"></label>
+    <button class="chip hide" id="btnDl" onclick="download()">⬇ Save</button>
   </div>
 
   <div class="status" id="status"><div class="dot"></div><span id="statusText">Tap the mic and speak Romanian.</span><span class="timer" id="timer" style="display:none">00:00</span></div>
@@ -95,6 +97,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && window.innerWidth < 900);
 let rec = null, on = false, running = false, tInt = null, secs = 0, watchdog = null, wake = null;
 let queue = [], busy = false, lastN = '', lastT = 0;
+let engine = 'browser';
 
 /* ---------- translation (free Google endpoint, with retry) ---------- */
 async function translate(text, tries = 3) {
@@ -196,6 +199,8 @@ function appendTo(id, text) {
 async function startRec() {
   if (!SR) { status('error', '⚠ This browser has no speech recognition. Open in Chrome (Android) or Edge. iPhone Safari is not supported.'); return; }
   if (on) return;
+  if ($('bgToggle').checked) return startWhisper();
+  engine = 'browser';
   queue = []; on = true; running = false; lastN = ''; lastT = 0;
   rec = buildRec();
   try { rec.start(); } catch (e) { status('error', '⚠ ' + e.message); on = false; return; }
@@ -207,6 +212,7 @@ async function startRec() {
 }
 async function stopRec() {
   if (!on) return;
+  if (engine === 'whisper') return stopWhisper();
   on = false; clearInterval(watchdog);
   if (rec) { const r = rec; r.onend = null; try { r.stop(); } catch (_) {} if (!r._committed && r._interim) commit(r._interim); }
   try { if (wake) { wake.release(); wake = null; } } catch (_) {}
@@ -218,6 +224,95 @@ async function stopRec() {
   status('done', `Done · ${$('timer').textContent} · ${wordsOf($('english').value)} words`);
   if ($('english').value.trim()) $('btnDl').classList.remove('hide');
 }
+/* ---------- Background mode: Whisper speech model running inside the phone (free, no key) ---------- */
+const W = { pipe: null, loading: null, ctx: null, stream: null, proc: null, buf: [], timer: null, q: Promise.resolve() };
+const W_RATE = 16000, W_CHUNK_MS = 8000;
+const JUNK = /(mul[țtţ]umesc|multumesc)\s+pentru\s+(vizionare|urm[ăa]rire)|subtitrare|abona[țtţ]i-v[ăa]|thanks for watching|subtitles? by|amara\.org|www\./i;
+
+function loadWhisper() {
+  if (W.pipe) return Promise.resolve(W.pipe);
+  if (!W.loading) W.loading = (async () => {
+    const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+    env.allowLocalModels = false;
+    W.pipe = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base', {
+      progress_callback: p => { if (p.status === 'progress' && p.progress) status('recording', `⬇ Downloading speech model… ${Math.round(p.progress)}% (one time only)`); }
+    });
+    return W.pipe;
+  })().catch(e => { W.loading = null; throw e; });
+  return W.loading;
+}
+function resample(data, from, to) {
+  if (from === to) return data;
+  const ratio = from / to, n = Math.floor(data.length / ratio), out = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const p = i * ratio, a = Math.floor(p), b = Math.min(a + 1, data.length - 1); out[i] = data[a] + (data[b] - data[a]) * (p - a); }
+  return out;
+}
+async function startWhisper() {
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { status('error', '⚠ This browser cannot record audio.'); return; }
+  engine = 'whisper'; on = true; queue = []; lastN = ''; lastT = 0; W.buf = [];
+  ui(true); $('bgToggle').disabled = true;
+  status('recording', '⬇ Loading speech model… (first time takes a minute)');
+  try { await loadWhisper(); }
+  catch (e) { on = false; ui(false); $('bgToggle').disabled = false; status('error', '⚠ Could not load the speech model — check internet and try again.'); return; }
+  if (!on) return;
+  try {
+    /* all filtering OFF so music and background audio reach the model */
+    W.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const AC = window.AudioContext || window.webkitAudioContext;
+    try { W.ctx = new AC({ sampleRate: W_RATE }); } catch (_) { W.ctx = new AC(); }
+    if (W.ctx.state === 'suspended') await W.ctx.resume();
+    const src = W.ctx.createMediaStreamSource(W.stream);
+    W.proc = W.ctx.createScriptProcessor(4096, 1, 1);
+    const mute = W.ctx.createGain(); mute.gain.value = 0;
+    W.proc.onaudioprocess = e => { if (on) W.buf.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+    src.connect(W.proc); W.proc.connect(mute); mute.connect(W.ctx.destination);
+  } catch (e) {
+    on = false; ui(false); $('bgToggle').disabled = false;
+    status('error', '⚠ Microphone blocked — allow mic access for this site and try again.'); return;
+  }
+  try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch (_) {}
+  startTimer();
+  status('recording', '🎵 Background mode — listening to everything around you…');
+  W.timer = setInterval(flushChunk, W_CHUNK_MS);
+}
+function flushChunk() {
+  if (!W.buf.length) return;
+  let len = 0; W.buf.forEach(b => len += b.length);
+  const all = new Float32Array(len); let o = 0; W.buf.forEach(b => { all.set(b, o); o += b.length; }); W.buf = [];
+  let sum = 0; for (let i = 0; i < all.length; i += 8) sum += all[i] * all[i];
+  if (Math.sqrt(sum / (all.length / 8)) < 0.004) return;               // silence → skip
+  const audio = resample(all, W.ctx.sampleRate, W_RATE);
+  W.q = W.q.then(async () => {
+    try {
+      const out = await W.pipe(audio, { language: 'romanian', task: 'transcribe' });
+      const t = (out && out.text || '').trim();
+      if (t && !(t.length < 90 && JUNK.test(t))) commit(t);
+    } catch (_) {}
+  });
+}
+async function stopWhisper() {
+  on = false; clearInterval(W.timer); clearInterval(tInt);
+  flushChunk();
+  try { if (W.proc) { W.proc.onaudioprocess = null; W.proc.disconnect(); } } catch (_) {}
+  try { if (W.stream) W.stream.getTracks().forEach(t => t.stop()); } catch (_) {}
+  try { if (W.ctx) W.ctx.close(); } catch (_) {}
+  W.proc = W.stream = W.ctx = null;
+  try { if (wake) { wake.release(); wake = null; } } catch (_) {}
+  status('', '🌐 Finishing last part…');
+  try { await W.q; } catch (_) {}
+  await new Promise(r => setTimeout(r, 300));
+  while (busy || queue.length) { drain(); await new Promise(r => setTimeout(r, 200)); }
+  stats(); ui(false); $('bgToggle').disabled = false;
+  status('done', `Done · ${$('timer').textContent} · ${wordsOf($('english').value)} words`);
+  if ($('english').value.trim()) $('btnDl').classList.remove('hide');
+}
+function bgChange() {
+  const c = $('bgToggle').checked;
+  $('bgChip').classList.toggle('on', c);
+  status('', c ? '🎵 Background mode: hears music & device audio. Slower — text appears every ~10 seconds.' : 'Normal mode: fast, best for one person speaking close to the phone.');
+  if (c) loadWhisper().catch(() => {});   // start downloading the model right away
+}
+
 function toggleRec() { on ? stopRec() : startRec(); }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && on && !running) restartSoon(); });
 
@@ -232,7 +327,10 @@ function status(type, msg) { $('status').className = 'status' + (type ? ' ' + ty
 function startTimer() {
   secs = 0; $('timer').style.display = 'inline'; $('timer').textContent = '00:00';
   clearInterval(tInt);
-  tInt = setInterval(() => { secs++; $('timer').textContent = String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0'); }, 1000);
+  tInt = setInterval(() => {
+    secs++;
+    $('timer').textContent = String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0');
+  }, 1000);
 }
 const wordsOf = t => (t.trim() ? t.trim().split(/\s+/).length : 0);
 function stats() { $('wc').textContent = wordsOf($('english').value); }

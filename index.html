@@ -40,11 +40,10 @@ body{font-family:var(--font);background:var(--bg);background-image:radial-gradie
 
 .panes{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:6px 16px 10px}
 .pane{display:flex;flex-direction:column;min-height:0}
-.pane.en{flex:3}.pane.ro{flex:2}
+.pane.en{flex:1}
 .lab{display:flex;justify-content:space-between;font:10px var(--mono);letter-spacing:2px;text-transform:uppercase;color:var(--mute);margin-bottom:6px}
 .lab b{color:var(--blue);font-weight:400}
 textarea{flex:1;min-height:0;width:100%;resize:none;background:var(--card);border:1.5px solid var(--dim);border-radius:14px;padding:12px 14px;font:16px/1.55 var(--font);color:var(--txt);outline:none}
-.pane.ro textarea{font-size:15px;color:rgba(200,225,255,.8)}
 textarea::placeholder{color:rgba(120,170,210,.4)}
 textarea.live{border-color:rgba(57,255,20,.4)}
 
@@ -68,7 +67,6 @@ textarea.live{border-color:rgba(57,255,20,.4)}
   <div class="chips">
     <label class="chip" id="bgChip">🎵 Background mode<input type="checkbox" id="bgToggle" onchange="bgChange()"></label>
     <label class="chip">📁 Upload<input type="file" id="file" accept=".txt,.docx,.pdf" onchange="uploadFile(this)"></label>
-    <button class="chip hide" id="btnDl" onclick="download()">⬇ Save</button>
   </div>
 
   <div class="status" id="status"><div class="dot"></div><span id="statusText">Tap the mic and speak Romanian.</span><span class="timer" id="timer" style="display:none">00:00</span></div>
@@ -77,10 +75,6 @@ textarea.live{border-color:rgba(57,255,20,.4)}
     <div class="pane en">
       <div class="lab"><span>🇬🇧 English</span><span>Words <b id="wc">0</b></span></div>
       <textarea id="english" placeholder="English translation appears here…"></textarea>
-    </div>
-    <div class="pane ro">
-      <div class="lab"><span>🇷🇴 Romanian (as heard)</span></div>
-      <textarea id="original" placeholder="Romanian text appears here…"></textarea>
     </div>
   </div>
 
@@ -184,7 +178,6 @@ async function drain() {
   if (busy) return; busy = true;
   while (queue.length) {
     const ro = queue.shift();
-    appendTo('original', ro);
     appendTo('english', await translate(ro));
     stats();
   }
@@ -222,11 +215,10 @@ async function stopRec() {
   while (busy || queue.length) { drain(); await new Promise(r => setTimeout(r, 200)); }
   stats(); ui(false);
   status('done', `Done · ${$('timer').textContent} · ${wordsOf($('english').value)} words`);
-  if ($('english').value.trim()) $('btnDl').classList.remove('hide');
 }
 /* ---------- Background mode: Whisper speech model running inside the phone (free, no key) ---------- */
-const W = { pipe: null, loading: null, ctx: null, stream: null, proc: null, buf: [], timer: null, q: Promise.resolve() };
-const W_RATE = 16000, W_CHUNK_MS = 8000;
+const W = { pipe: null, loading: null, ctx: null, stream: null, proc: null, buf: [], timer: null, chunks: [], working: false };
+const W_RATE = 16000, W_CHUNK_MS = 6000;
 const JUNK = /(mul[țtţ]umesc|multumesc)\s+pentru\s+(vizionare|urm[ăa]rire)|subtitrare|abona[țtţ]i-v[ăa]|thanks for watching|subtitles? by|amara\.org|www\./i;
 
 function loadWhisper() {
@@ -234,7 +226,8 @@ function loadWhisper() {
   if (!W.loading) W.loading = (async () => {
     const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
     env.allowLocalModels = false;
-    W.pipe = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base', {
+    try { env.backends.onnx.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 2); } catch (_) {}
+    W.pipe = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
       progress_callback: p => { if (p.status === 'progress' && p.progress) status('recording', `⬇ Downloading speech model… ${Math.round(p.progress)}% (one time only)`); }
     });
     return W.pipe;
@@ -282,13 +275,21 @@ function flushChunk() {
   let sum = 0; for (let i = 0; i < all.length; i += 8) sum += all[i] * all[i];
   if (Math.sqrt(sum / (all.length / 8)) < 0.004) return;               // silence → skip
   const audio = resample(all, W.ctx.sampleRate, W_RATE);
-  W.q = W.q.then(async () => {
+  W.chunks.push(audio);
+  while (W.chunks.length > 2) W.chunks.shift();     // never fall far behind: skip the oldest waiting audio
+  runWorker();
+}
+async function runWorker() {
+  if (W.working) return; W.working = true;
+  while (W.chunks.length) {
+    const audio = W.chunks.shift();
     try {
       const out = await W.pipe(audio, { language: 'romanian', task: 'transcribe' });
       const t = (out && out.text || '').trim();
       if (t && !(t.length < 90 && JUNK.test(t))) commit(t);
     } catch (_) {}
-  });
+  }
+  W.working = false;
 }
 async function stopWhisper() {
   on = false; clearInterval(W.timer); clearInterval(tInt);
@@ -299,17 +300,16 @@ async function stopWhisper() {
   W.proc = W.stream = W.ctx = null;
   try { if (wake) { wake.release(); wake = null; } } catch (_) {}
   status('', '🌐 Finishing last part…');
-  try { await W.q; } catch (_) {}
+  while (W.working || W.chunks.length) { runWorker(); await new Promise(r => setTimeout(r, 200)); }
   await new Promise(r => setTimeout(r, 300));
   while (busy || queue.length) { drain(); await new Promise(r => setTimeout(r, 200)); }
   stats(); ui(false); $('bgToggle').disabled = false;
   status('done', `Done · ${$('timer').textContent} · ${wordsOf($('english').value)} words`);
-  if ($('english').value.trim()) $('btnDl').classList.remove('hide');
 }
 function bgChange() {
   const c = $('bgToggle').checked;
   $('bgChip').classList.toggle('on', c);
-  status('', c ? '🎵 Background mode: hears music & device audio. Slower — text appears every ~10 seconds.' : 'Normal mode: fast, best for one person speaking close to the phone.');
+  status('', c ? '🎵 Background mode: hears music & device audio. Text appears every few seconds.' : 'Normal mode: fast, best for one person speaking close to the phone.');
   if (c) loadWhisper().catch(() => {});   // start downloading the model right away
 }
 
@@ -320,8 +320,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && on
 function ui(rec) {
   $('btnMic').classList.toggle('on', rec); $('btnMic').textContent = rec ? '⏹' : '🎤';
   $('btnClr').disabled = rec;
-  ['original', 'english'].forEach(i => $(i).classList.toggle('live', rec));
-  if (rec) $('btnDl').classList.add('hide');
+  $('english').classList.toggle('live', rec);
 }
 function status(type, msg) { $('status').className = 'status' + (type ? ' ' + type : ''); $('statusText').textContent = msg; }
 function startTimer() {
@@ -336,31 +335,22 @@ const wordsOf = t => (t.trim() ? t.trim().split(/\s+/).length : 0);
 function stats() { $('wc').textContent = wordsOf($('english').value); }
 function clearAll() {
   if (on) return;
-  $('original').value = ''; $('english').value = '';
-  $('btnDl').classList.add('hide'); $('timer').style.display = 'none'; stats(); status('', 'Cleared. Tap the mic and speak Romanian.');
+  $('english').value = '';
+  $('timer').style.display = 'none'; stats(); status('', 'Cleared. Tap the mic and speak Romanian.');
 }
 async function copyEnglish() {
   const t = $('english').value.trim(); if (!t) return;
   try { await navigator.clipboard.writeText(t); status('done', '✓ English text copied'); }
   catch (_) { const e = $('english'); e.select(); document.execCommand('copy'); status('done', '✓ English text copied'); }
 }
-function download() {
-  const en = $('english').value.trim(), ro = $('original').value.trim();
-  if (!en && !ro) return;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([`=== ENGLISH ===\n${en}\n\n=== ROMANIAN ===\n${ro}\n`], { type: 'text/plain;charset=utf-8' }));
-  a.download = `setlingo_${new Date().toISOString().slice(0, 10)}.txt`;
-  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
 $('english').addEventListener('input', stats);
 
 /* ---------- document upload ---------- */
 async function finishDoc(ro, label) {
-  const o = $('original'), e = $('english');
-  o.value += (o.value.trim() ? '\n\n' : '') + ro;
+  const e = $('english');
   const en = await translateLong(ro);
   e.value += (e.value.trim() ? '\n\n' : '') + en;
-  stats(); status('done', label); $('btnDl').classList.remove('hide');
+  stats(); status('done', label);
 }
 function uploadFile(inp) {
   const f = inp.files[0]; if (!f) return;
